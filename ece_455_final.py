@@ -19,6 +19,15 @@ class Task:
     period: int
     deadline: int
 
+@dataclass
+class Job:
+    # One released instance of a periodic task
+
+    task: Task
+    release_time: int 
+    absolute_deadline: int
+    remaining_time: int
+
 def parse_time(value: str, line_number: int, field_name: str) -> int:
     # Convert a positive decimal time value into exact 0.001 unit ticks
 
@@ -99,6 +108,28 @@ def find_hyperperiod(tasks: Sequence[Task]) -> int:
 
     return hyperperiod
 
+def release_jobs(tasks: Sequence[Task], current_time: int) -> list[Job]:
+    # Create job instances for every task released at current time
+
+    released_jobs: list[Job] = []
+    for task in tasks:
+        if current_time % task.period == 0:
+            released_jobs.append(
+                Job(
+                    task=task,
+                    release_time=current_time,
+                    absolute_deadline=current_time + task.deadline,
+                    remaining_time=task.execution_time,
+                )
+            )
+
+    return released_jobs
+
+def rm_priority_key(job: Job) -> tuple[int, int, int]:
+    # Order jobs by period, input task order, then release time
+
+    return job.task.period, job.task.task_id, job.release_time
+
 def main(argv: Sequence[str] | None = None) -> int:
     # Main function call with argument
 
@@ -115,8 +146,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     hyperperiod = find_hyperperiod(tasks)
+    ready_jobs = release_jobs(tasks, 0)
+    ready_jobs.sort(key=rm_priority_key)
+
     # Placeholder
-    _ = hyperperiod
+    _ = (hyperperiod, ready_jobs)
     return 0
 
 if __name__ == "__main__":
