@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Sequence
+from math import gcd
 
 TICKS_PER_TIME_UNIT = 1000
 FIELD_NAMES = ("execution time", "period", "deadline")
@@ -87,6 +88,17 @@ def load_tasks(filename: str) -> list[Task]:
 
     return tasks
 
+def find_hyperperiod(tasks: Sequence[Task]) -> int:
+    # Return the least common multiple of all task periods in ticks
+
+    hyperperiod = 1
+    for task in tasks:
+        hyperperiod = hyperperiod * task.period // gcd(
+            hyperperiod, task.period
+        )
+
+    return hyperperiod
+
 def main(argv: Sequence[str] | None = None) -> int:
     # Main function call with argument
 
@@ -102,8 +114,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
 
-    # Placeholder tasks
-    _ = tasks
+    hyperperiod = find_hyperperiod(tasks)
+    # Placeholder
+    _ = hyperperiod
     return 0
 
 if __name__ == "__main__":
