@@ -130,6 +130,56 @@ def rm_priority_key(job: Job) -> tuple[int, int, int]:
 
     return job.task.period, job.task.task_id, job.release_time
 
+def simulate_rm_schedule(tasks: Sequence[Task]) -> tuple[bool, list[int]]:
+    # Simulate one hyperperiod using preemptive Rate Monotonic scheduling
+
+    hyperperiod = find_hyperperiod(tasks)
+    preemptions = [0] * len(tasks)
+    ready_jobs: list[Job] = []
+    running_job: Job | None = None
+    current_time = 0
+
+    while current_time < hyperperiod:
+        for job in ready_jobs:
+            if job.absolute_deadline <= current_time:
+                return False, preemptions
+
+        ready_jobs.extend(release_jobs(tasks, current_time))
+        ready_jobs.sort(key=rm_priority_key)
+        selected_job = ready_jobs[0] if ready_jobs else None
+
+        if running_job is not None and selected_job is not running_job:
+            preemptions[running_job.task.task_id] += 1
+
+        running_job = selected_job
+        next_release = min(
+            (current_time // task.period + 1) * task.period
+            for task in tasks
+        )
+
+        if running_job is None:
+            current_time = min(next_release, hyperperiod)
+            continue
+
+        completion_time = current_time + running_job.remaining_time
+        next_event = min(
+            next_release,
+            completion_time,
+            hyperperiod,
+        )
+
+        running_job.remaining_time -= next_event - current_time
+        current_time = next_event
+
+        if running_job.remaining_time == 0:
+            ready_jobs.remove(running_job)
+            running_job = None
+
+    if ready_jobs:
+        return False, preemptions
+
+    return True, preemptions
+
 def main(argv: Sequence[str] | None = None) -> int:
     # Main function call with argument
 
@@ -145,12 +195,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
 
-    hyperperiod = find_hyperperiod(tasks)
-    ready_jobs = release_jobs(tasks, 0)
-    ready_jobs.sort(key=rm_priority_key)
+    schedulable, preemptions = simulate_rm_schedule(tasks)
 
     # Placeholder
-    _ = (hyperperiod, ready_jobs)
+    _ = (schedulable, preemptions)
     return 0
 
 if __name__ == "__main__":
