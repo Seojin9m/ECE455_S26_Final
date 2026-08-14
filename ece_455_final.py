@@ -55,11 +55,17 @@ def load_tasks(filename: str) -> list[Task]:
     # Read tasks from workload file in input order
     
     tasks: list[Task] = []
-    path = (
-        Path(__file__).resolve().parent
-        / "ece_455_final_exam_extra_files"
-        / Path(filename).name
-    )
+
+    requested_path = Path(filename)
+
+    if requested_path.is_file():
+        path = requested_path
+    else:
+        path = (
+            Path(__file__).resolve().parent
+            / "ece_455_final_exam_extra_files"
+            / requested_path.name
+        )
 
     try: 
         workload = path.open("r", encoding="utf-8-sig")
@@ -170,7 +176,7 @@ def simulate_rm_schedule(tasks: Sequence[Task]) -> tuple[bool, list[int]]:
         next_deadline = min(job.absolute_deadline for job in ready_jobs)
         completion_time = current_time + running_job.remaining_time
 
-        # Jump directly to the next event of advancing tick by tick
+        # Jump directly to the next event instead of advancing tick by tick
         next_event = min(
             next_release,
             next_deadline,
@@ -209,8 +215,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     schedulable, preemptions = simulate_rm_schedule(tasks)
 
-    # Placeholder
-    _ = (schedulable, preemptions)
+    if schedulable: 
+        print("1")
+        print(",".join(str(count) for count in preemptions))
+    else:
+        print("0")
+        print()
+
     return 0
 
 if __name__ == "__main__":
