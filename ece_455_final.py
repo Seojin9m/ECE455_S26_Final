@@ -32,7 +32,7 @@ def parse_time(value: str, line_number: int, field_name: str) -> int:
     # Convert a positive decimal time value into exact 0.001 unit ticks
 
     try:
-        number = Decimal(value)
+        number = Decimal(value) # (Decimal prevents binary floating point rounding before scaling)
     except InvalidOperation as exc:
         raise ValueError(
             f"line {line_number}: invalid {field_name} {value!r}"
@@ -67,6 +67,7 @@ def load_tasks(filename: str) -> list[Task]:
         raise ValueError(f"could not open {filename!r}: {exc}") from exc
 
     with workload:
+        # File order defines task IDs and breaks equal period prority ties
         for line_number, raw_line in enumerate(workload, start=1):
             line = raw_line.strip()
             if not line:
@@ -102,6 +103,7 @@ def find_hyperperiod(tasks: Sequence[Task]) -> int:
 
     hyperperiod = 1
     for task in tasks:
+        # lcm(a, b) = a * b / gcd(a, b) one period at a time
         hyperperiod = hyperperiod * task.period // gcd(
             hyperperiod, task.period
         )
@@ -113,6 +115,7 @@ def release_jobs(tasks: Sequence[Task], current_time: int) -> list[Job]:
 
     released_jobs: list[Job] = []
     for task in tasks:
+        # Every task first releases at time zero, then once per period
         if current_time % task.period == 0:
             released_jobs.append(
                 Job(
@@ -140,14 +143,17 @@ def simulate_rm_schedule(tasks: Sequence[Task]) -> tuple[bool, list[int]]:
     current_time = 0
 
     while current_time < hyperperiod:
+        # An unfinished job at its deadline makes the schedule infeasible
         for job in ready_jobs:
             if job.absolute_deadline <= current_time:
                 return False, preemptions
 
+        # Release new jobs, then select the highest fixed-priority ready job
         ready_jobs.extend(release_jobs(tasks, current_time))
         ready_jobs.sort(key=rm_priority_key)
         selected_job = ready_jobs[0] if ready_jobs else None
 
+        # A switch away from an unfinished running job is one preemption
         if running_job is not None and selected_job is not running_job:
             preemptions[running_job.task.task_id] += 1
 
@@ -161,13 +167,18 @@ def simulate_rm_schedule(tasks: Sequence[Task]) -> tuple[bool, list[int]]:
             current_time = min(next_release, hyperperiod)
             continue
 
+        next_deadline = min(job.absolute_deadline for job in ready_jobs)
         completion_time = current_time + running_job.remaining_time
+
+        # Jump directly to the next event of advancing tick by tick
         next_event = min(
             next_release,
+            next_deadline,
             completion_time,
             hyperperiod,
         )
 
+        # Give the selected job all processor time until that event
         running_job.remaining_time -= next_event - current_time
         current_time = next_event
 
@@ -175,6 +186,7 @@ def simulate_rm_schedule(tasks: Sequence[Task]) -> tuple[bool, list[int]]:
             ready_jobs.remove(running_job)
             running_job = None
 
+    # No unfinished work may carry into the repeated hyperperiod
     if ready_jobs:
         return False, preemptions
 
